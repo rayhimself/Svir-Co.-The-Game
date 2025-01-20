@@ -28,7 +28,7 @@ func (p *Player) Draw(screen *ebiten.Image, frameHeight, frameWidth, frameCount 
 	screen.DrawImage(p.Sprite.SubImage(image.Rect(sx, sy, sx+frameWidth, sy+frameHeight)).(*ebiten.Image), op)
 }
 
-func (p *Player) Update() {
+func (p *Player) Update(frameHeight, frameWidth int) {
 	p.FrameOY = 0
 	p.FrameOX = 0
 	dx, dy := 0.0, 0.0
@@ -36,23 +36,32 @@ func (p *Player) Update() {
 
 	if p.Input.ActionIsPressed(ActionMoveLeft) {
 		dx = -moveSpd
-		p.FrameOY = 32
-		p.FrameOX = 32 * 6
+		p.FrameOY = frameHeight * 2
+		p.FrameOX = frameWidth * 2
 	}
 	if p.Input.ActionIsPressed(ActionMoveRight) {
 		dx += moveSpd
-		p.FrameOY = 32
-		p.FrameOX = 0
+		p.FrameOY = frameHeight * 3
+		p.FrameOX = frameWidth * 2
 	}
 	if p.Input.ActionIsPressed(ActionMoveDown) {
 		dy += moveSpd
-		p.FrameOY = 32
-		p.FrameOX = 32 * 9
+		p.FrameOY = 0
+		p.FrameOX = frameWidth * 2
 	}
 	if p.Input.ActionIsPressed(ActionMoveTop) {
 		dy = -moveSpd
-		p.FrameOY = 32
-		p.FrameOX = 32 * 3
+		p.FrameOY = frameHeight
+		p.FrameOX = frameWidth * 2
+	}
+
+	if p.Input.ActionIsPressed(ActionInteract) {
+		p.FrameOY = frameHeight
+		p.FrameOX = 0
+	}
+	if p.Input.ActionIsPressed(ActionPlant) {
+		p.FrameOY = frameHeight * 2
+		p.FrameOX = 0
 	}
 	if collision := p.Model.Check(dx, 0); collision != nil {
 		dx = 0
