@@ -1,54 +1,31 @@
 package main
 
 import (
-	"fmt"
-	"math"
 	"image"
 	"image/png"
 	_ "image/png"
-	"log"
+	"fmt"
 	"main/k8s"
 	"main/lvl"
-	"main/entity"
 	"main/player"
 	"os"
-	"strings"
-
-	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
+	"log"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	input "github.com/quasilyte/ebitengine-input"
 	"github.com/solarlune/resolv"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/opentype"
 	restclient "k8s.io/client-go/rest"
 
-)
-
-var (
-	mplusNormalFont font.Face
-	test_kal = []*entity.Entity {
-		{
-			Name: "psheno",
-			TextureId: 0,
-			Model: resolv.NewObject(150, 30, bacgroundTextureSize, bacgroundTextureSize),
-		},
-		{
-			Name: "plod",
-			TextureId: 1,
-			Model: resolv.NewObject(150, 80, bacgroundTextureSize, bacgroundTextureSize),
-			},
-	}
 )
 
 const (
 	screenWidth          = 256+128
 	screenHeight         = 256
 	bacgroundTextureSize = 16
-	frameWidth           = 48
-	frameHeight          = 48
+	frameWidth           = 16
+	frameHeight          = 32
 	frameCount           = 2
-	moveSpd              = 4.0
+	moveSpd              = 2.0
 	dpi                  = 72
 )
 
@@ -62,38 +39,25 @@ var (
 type Game struct {
 	inputSystem input.System
 	p           *player.Player
-	e			[]*entity.Entity
 	space       *resolv.Space
-	lvl_map     []string
-	curentLvl   int
-	exitPosX    int
-	exitPosY    int
-	lvl_type    string
+	lvl_map     *lvl.LvlMap
 	count       int
 	kubeConfig *restclient.Config
 }
 
 func (g *Game) Update() error {
 	if g.p.Input.ActionIsJustPressed(player.ActionInteract) {
-		for i := 0; i < len(g.e); i++ {
-			if math.Abs(g.p.Model.Position.X-g.e[i].Model.Position.X) < 32 && math.Abs(g.p.Model.Position.Y-g.e[i].Model.Position.Y) < 32 {
-				fmt.Println(k8s.GetDeploy("dev", g.kubeConfig))
-				k8s.DeleteDeploy("dev", g.e[i].Name, g.kubeConfig)
-			}
+		switch g.p.Item {
+			case 1: g.lvl_map.Break(g.p.TargetX, g.p.TargetY, "dev", g.kubeConfig)
+			case 2: g.lvl_map.Plant(g.p.TargetX, g.p.TargetY, "apple", "dev", g.kubeConfig)
+			case 3: g.lvl_map.Plant(g.p.TargetX, g.p.TargetY, "wheat", "dev", g.kubeConfig)
 		}
 	}
-	if g.p.Input.ActionIsJustPressed(player.ActionPlant) {
-		for i := 0; i < len(g.e); i++ {
-			if math.Abs(g.p.Model.Position.X-g.e[i].Model.Position.X) < 32 && math.Abs(g.p.Model.Position.Y-g.e[i].Model.Position.Y) < 32 {
-				fmt.Println(k8s.GetDeploy("dev", g.kubeConfig))
-				k8s.CreateDeploy("dev", g.e[i].Name, g.kubeConfig)
-			}
-		}
-	}
+	// сюда интеракт с логикой что делать при каком предмете 
 	g.p.Count++
 	g.count++
 	g.inputSystem.Update()
-	g.p.Update(frameHeight, frameWidth)
+	g.p.Update(frameHeight, frameWidth, bacgroundTextureSize)
 	return nil
 }
 
@@ -103,16 +67,9 @@ func startGame() *Game {
 		DevicesEnabled: input.AnyDevice,
 	})
 	g.kubeConfig = k8s.GerCubeConfig()
-	tt, _ := opentype.Parse(fonts.MPlus1pRegular_ttf)
 
-	mplusNormalFont, _ = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    12,
-		DPI:     dpi,
-		Hinting: font.HintingVertical,
-	})
-	g.curentLvl = 1
-	g.SetUpLevel(&lvl.Lvl1_data)
-	g.SetUpPlayer(&lvl.Lvl1_data)
+	g.SetUpLevel()
+	g.SetUpPlayer()
 
 	return g
 }
@@ -127,48 +84,29 @@ func Loader(path string) *ebiten.Image {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	for i := 0; i < len(g.lvl_map); i++ {
-		line := strings.Split(g.lvl_map[i], " ")
-		for j := 0; j < len(line); j++ {
-			op := &ebiten.DrawImageOptions{}
-			sx, sy := lvl.MapObjects[line[j]].OX, lvl.MapObjects[line[j]].OY
-			op.GeoM.Translate(float64(i*bacgroundTextureSize), float64(j*bacgroundTextureSize))
-			screen.DrawImage(bacgroundImage.SubImage(image.Rect(sx, sy, sx+bacgroundTextureSize, sy+bacgroundTextureSize)).(*ebiten.Image), op)
-		}
-	}
-	g.p.Draw(screen, frameHeight, frameWidth, frameCount)
-	for i := 0; i < len(g.e); i++ {
-		g.e[i].Draw(entityImage, screen, bacgroundTextureSize, bacgroundTextureSize)
-	}
-
+	g.lvl_map.Draw(bacgroundImage, entityImage, screen)
+	g.p.Draw(screen, frameHeight, frameWidth, frameCount, bacgroundTextureSize)
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("Now holding: %s", player.Items[g.p.Item]))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenWidth, screenHeight
 }
 
-func (g *Game) ClearLevel() *Game {
-	g.space = nil
-	g.p = nil
-	return g
-}
-
-func (g *Game) SetUpLevel(lvl_data *lvl.Lvl_data) *Game {
-	g.lvl_map = lvl_data.Lvl_map
-	g.e = test_kal
-	g.space = resolv.NewSpace(screenWidth, screenHeight, bacgroundTextureSize, bacgroundTextureSize)
-	for i := 0; i < len(g.lvl_map); i++ {
-		line := strings.Split(g.lvl_map[i], " ")
-		for j := 0; j < len(line); j++ {
-			if lvl.MapObjects[line[j]].IsObject {
-				g.space.Add(resolv.NewObject(float64(i*bacgroundTextureSize), float64(j*bacgroundTextureSize), bacgroundTextureSize, bacgroundTextureSize))
-			}
-		}
+func (g *Game) SetUpLevel() *Game {
+	g.lvl_map = &lvl.LvlMap{
+		Height: screenHeight,
+		Width: screenWidth,
+		TextureSize: bacgroundTextureSize,
 	}
+	g.space = resolv.NewSpace(screenWidth, screenHeight, bacgroundTextureSize, bacgroundTextureSize)
+	g.lvl_map.AddModel(g.space)
+	g.lvl_map.CreateGrid()
+	g.lvl_map.FillLvl("dev", g.kubeConfig)
 	return g
 }
 
-func (g *Game) SetUpPlayer(lvl_data *lvl.Lvl_data) *Game {
+func (g *Game) SetUpPlayer() *Game {
 	g.p = &player.Player{
 		StartPosX: 70,
 		StartPosY: 70,
@@ -176,15 +114,15 @@ func (g *Game) SetUpPlayer(lvl_data *lvl.Lvl_data) *Game {
 		FrameOX:   0,
 		FrameOY:   0,
 		Sprite:    playerImage,
-		Model:     resolv.NewObject(70, 70, frameWidth/2, frameHeight/2),
+		Model:     resolv.NewObject(70, 70+frameHeight/2, frameWidth, frameHeight/2),
+		Direction: "Down",
+		Item:      1,
 	}
 	g.space.Add(g.p.Model)
 	return g
 }
 
 func main() {
-	
-	// Decode an image from the image file's byte slice.
 	playerImage = Loader("player.png")
 	bacgroundImage = Loader("TexturePack.png")
 	logo_file, err := os.Open("_assets/Vano_face.png")

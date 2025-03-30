@@ -8,6 +8,13 @@ import (
 	"github.com/solarlune/resolv"
 )
 
+var mapDirection = map[string]int{ 
+	"Down": 0,
+	"Top": 1,
+	"Left": 2,
+	"Right": 3,
+}
+
 type Player struct {
 	StartPosX int
 	StartPosY int
@@ -17,64 +24,98 @@ type Player struct {
 	Count     int
 	FrameOX   int
 	FrameOY   int
-	IsLocked  bool
+	Direction string
+	TargetX int
+	TargetY int
+	Item int
 }
 
-func (p *Player) Draw(screen *ebiten.Image, frameHeight, frameWidth, frameCount int) {
+func (p *Player) Draw(screen *ebiten.Image, frameHeight, frameWidth, frameCount, textureSize int) {
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(float64(p.Model.Position.X), p.Model.Position.Y-float64(frameHeight/2))
 	i := (p.Count / 12) % frameCount
 	sx, sy := p.FrameOX+i*frameWidth, p.FrameOY
 	screen.DrawImage(p.Sprite.SubImage(image.Rect(sx, sy, sx+frameWidth, sy+frameHeight)).(*ebiten.Image), op)
+	tp := &ebiten.DrawImageOptions{}
+	tp.GeoM.Translate(float64(p.TargetX*textureSize), float64(p.TargetY*textureSize))
+	sx, sy = 128, 0
+	screen.DrawImage(p.Sprite.SubImage(image.Rect(sx, sy, sx+textureSize, sy+textureSize)).(*ebiten.Image), tp)
 }
 
-func (p *Player) Update(frameHeight, frameWidth int) {
-	p.FrameOY = 0
+func (p *Player) Update(frameHeight, frameWidth, textureSize int) {
+	p.FrameOY = mapDirection[p.Direction] * frameHeight
 	p.FrameOX = 0
-	dx, dy := 0.0, 0.0
-	moveSpd := 4.0
 
-	if p.Input.ActionIsPressed(ActionMoveLeft) {
-		dx = -moveSpd
-		p.FrameOY = frameHeight * 2
-		p.FrameOX = frameWidth * 2
+	var (
+		deltaX, deltaY float64
+		moveSpeed      = 2.0
+	)
+
+	switch p.Direction {
+	case "Down":
+		p.TargetX = (int(p.Model.Position.X) + textureSize/2) / textureSize
+		p.TargetY = (int(p.Model.Position.Y) + textureSize/2) / textureSize + 1
+	case "Top":
+		p.TargetX = (int(p.Model.Position.X) + textureSize/2) / textureSize
+		p.TargetY = (int(p.Model.Position.Y) + textureSize/2) / textureSize - 1
+	case "Left":
+		p.TargetX = (int(p.Model.Position.X) + textureSize/2) / textureSize - 1
+		p.TargetY = (int(p.Model.Position.Y) + textureSize/2) / textureSize
+	case "Right":
+		p.TargetX = (int(p.Model.Position.X) + textureSize/2) / textureSize + 1
+		p.TargetY = (int(p.Model.Position.Y) + textureSize/2) / textureSize
 	}
-	if p.Input.ActionIsPressed(ActionMoveRight) {
-		dx += moveSpd
-		p.FrameOY = frameHeight * 3
-		p.FrameOX = frameWidth * 2
+
+	updatePosition := func(direction string, dx, dy float64, frameOffset int) {
+		p.Direction = direction
+		deltaX, deltaY = dx, dy
+		p.FrameOY = mapDirection[direction] * frameHeight
+		p.FrameOX = frameWidth * frameOffset
+	}
+
+	if p.Input.ActionIsPressed(ActionMoveTop) {
+		updatePosition("Top", 0, -moveSpeed, 2)
 	}
 	if p.Input.ActionIsPressed(ActionMoveDown) {
-		dy += moveSpd
-		p.FrameOY = 0
-		p.FrameOX = frameWidth * 2
+		updatePosition("Down", 0, moveSpeed, 2)
 	}
-	if p.Input.ActionIsPressed(ActionMoveTop) {
-		dy = -moveSpd
-		p.FrameOY = frameHeight
-		p.FrameOX = frameWidth * 2
+	if p.Input.ActionIsPressed(ActionMoveLeft) {
+		updatePosition("Left", -moveSpeed, 0, 2)
+	}
+	if p.Input.ActionIsPressed(ActionMoveRight) {
+		updatePosition("Right", moveSpeed, 0, 2)
+	}
+	if p.Input.ActionIsPressed(ActionInteract) {
+		p.FrameOY = mapDirection[p.Direction] * frameHeight
+		if p.Item == 1 {
+			p.FrameOX = frameWidth * 4
+		} else {
+			p.FrameOX = frameWidth * 6
+		}
+	}
+	if p.Input.ActionIsPressed(FirstItem) {
+		p.Item = 1
+	}
+	if p.Input.ActionIsPressed(SecondItem) {
+		p.Item = 2
+	}
+	if p.Input.ActionIsPressed(ThirdItem) {
+		p.Item = 3
+	}
+	// if p.Input.ActionIsPressed(ActionChangeItemUp) {
+	// 	p.ChangeItem("Up")
+	// }
+	// if p.Input.ActionIsPressed(ActionChangeItemDown) {
+	// 	p.ChangeItem("Down")
+	// }
+	if collision := p.Model.Check(deltaX, 0); collision != nil {
+		deltaX = 0
+	}
+	if collision := p.Model.Check(0, deltaY); collision != nil {
+		deltaY = 0
 	}
 
-	if p.Input.ActionIsPressed(ActionInteract) {
-		p.FrameOY = frameHeight
-		p.FrameOX = 0
-	}
-	if p.Input.ActionIsPressed(ActionPlant) {
-		p.FrameOY = frameHeight * 2
-		p.FrameOX = 0
-	}
-	if collision := p.Model.Check(dx, 0); collision != nil {
-		dx = 0
-	}
-	if collision := p.Model.Check(0, dy); collision != nil {
-		dy = 0
-	}
-	if p.IsLocked {
-		dx, dy = 0, 0
-		p.FrameOY = 0
-		p.FrameOX = 0
-	}
-	p.Model.Position.X += dx
-	p.Model.Position.Y += dy
+	p.Model.Position.X += deltaX
+	p.Model.Position.Y += deltaY
 	p.Model.Update()
 }

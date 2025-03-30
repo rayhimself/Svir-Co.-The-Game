@@ -10,7 +10,12 @@ const (
 	ActionMoveDown
 	ActionUnbound
 	ActionInteract
-	ActionPlant
+	FirstItem
+	SecondItem
+	ThirdItem
+	FourthItem
+	ActionChangeItemUp
+	ActionChangeItemDown
 )
 
 var Keymap = input.Keymap{
@@ -18,7 +23,12 @@ var Keymap = input.Keymap{
 	ActionMoveRight: {input.KeyGamepadRight, input.KeyRight, input.KeyD},
 	ActionMoveTop:   {input.KeyGamepadUp, input.KeyUp, input.KeyW},
 	ActionMoveDown:  {input.KeyGamepadDown, input.KeyDown, input.KeyS},
-	ActionInteract:  {input.KeyGamepadA, input.KeyE},
-	ActionPlant:  {input.KeyGamepadB, input.KeyF},
+	ActionInteract:  {input.KeyGamepadA, input.KeyE, input.KeyMouseLeft},
+	ActionChangeItemUp: {input.KeyWheelVertical},
+	ActionChangeItemDown: {input.KeyWheelDown},
+	FirstItem:  {input.KeyGamepadA, input.Key1},
+	SecondItem: {input.KeyGamepadB, input.Key2},
+	ThirdItem:  {input.KeyGamepadX, input.Key3},
+	FourthItem: {input.KeyGamepadY, input.Key4},
 	ActionUnbound:   {},
 }

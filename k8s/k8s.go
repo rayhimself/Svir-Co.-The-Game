@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"fmt"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
@@ -13,6 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
 
 func GerCubeConfig() *restclient.Config {
 	userHomeDir, _ := os.UserHomeDir()
@@ -26,14 +26,10 @@ func GerCubeConfig() *restclient.Config {
 	return kubeConfig
 }
 
-func GetDeploy(namespace string, kubeConfig *restclient.Config) []string {
+func GetDeploy(namespace string, kubeConfig *restclient.Config) *appsv1.DeploymentList {
 	clientset, _ := kubernetes.NewForConfig(kubeConfig)
 	deploys, _ := clientset.AppsV1().Deployments(namespace).List(context.Background(), v1.ListOptions{})
-	var deploys_list []string
-	for _, deploys := range deploys.Items {
-		deploys_list = append(deploys_list, deploys.Name)
-	}
-	return deploys_list
+	return deploys
 }
 
 func DeleteDeploy (namespace, delpoyName string, kubeConfig *restclient.Config) {
@@ -44,21 +40,24 @@ func DeleteDeploy (namespace, delpoyName string, kubeConfig *restclient.Config) 
 	})
 }
 
-func CreateDeploy (namespace, delpoyName string, kubeConfig *restclient.Config) {
+func CreateDeploy (namespace, delpoyName, palnt string, kubeConfig *restclient.Config) {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: v1.ObjectMeta{
 			Name: delpoyName,
+			Labels: map[string]string{
+				"plant": palnt,
+			},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &v1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": delpoyName,
+					"plant": palnt,
 				},
 			},
 			Template: apiv1.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
 					Labels: map[string]string{
-						"app": delpoyName,
+						"plant": palnt,
 					},
 				},
 				Spec: apiv1.PodSpec{
